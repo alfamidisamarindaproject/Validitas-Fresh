@@ -1,1 +1,70 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; padding-bottom: 100px; }
+        .header { background: #1a936f; color: white; padding: 30px 0; margin-bottom: 20px; }
+        .card-table { background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; }
+        .status-badge { font-size: 0.8rem; padding: 5px 10px; border-radius: 20px; }
+        .btn-view { font-size: 0.7rem; }
+        .submit-bar { position: fixed; bottom: 0; width: 100%; background: white; padding: 15px; border-top: 2px solid #eee; display:none; }
+        #loading { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); display:flex; justify-content:center; align-items:center; z-index:9999; }
+    </style>
+</head>
+<body>
 
+<div id="loading">
+    <div class="text-center">
+        <div class="spinner-border text-success"></div>
+        <p>Memuat Data...</p>
+    </div>
+</div>
+
+<div class="header text-center">
+    <h3>✅ VALIDATOR CHECKLIST FRESH</h3>
+    <p>Target Kolom: G (Status Validasi)</p>
+</div>
+
+<div class="container-fluid">
+    <div class="card-table">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Waktu</th>
+                        <th>Nama/Toko</th>
+                        <th>Aktivitas</th>
+                        <th>Bukti Foto</th>
+                        <th>Status Saat Ini</th>
+                        <th class="text-center">Validasi</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="submit-bar" id="submitBar">
+    <div class="container d-flex justify-content-between align-items-center">
+        <div id="countText" class="fw-bold text-success">0 data dipilih</div>
+        <button onclick="simpanData()" class="btn btn-success px-4">SIMPAN KE GSHEET</button>
+    </div>
+</div>
+
+<div class="modal fade" id="fotoModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <img src="" id="imgPreview" class="img-fluid">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<?!= HtmlService.createHtmlOutputFromFile('app').getContent(); ?>
+</body>
+</html>
