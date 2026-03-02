@@ -1,100 +1,190 @@
-let allData = [];
-let updateQueue = [];
+const URL_WEB_APP = "https://script.google.com/macros/s/AKfycbzzLhFsfU41K_vTkN77I5l09OyBe7BnTtRcZvRxJFxt5lZp0TamVZWqpZPjY-Fr9mv7/exec";
 
-document.addEventListener('DOMContentLoaded', fetchData);
+let allDataRaw = [];
+let queue = [];
 
-function fetchData() {
-    toggleLoader(true);
-    google.script.run.withSuccessHandler(data => {
-        allData = data;
-        renderCards(data);
-        toggleLoader(false);
-    }).getData();
+window.onload = fetchData;
+
+// 1. MENGAMBIL DATA DARI GSHEET
+async function fetchData() {
+    toggleLoading(true);
+    queue = [];
+    updateSubmitBar();
+    try {
+        const response = await fetch(URL_WEB_APP);
+        const data = await response.json();
+        // Memastikan data yang diterima adalah array
+        allDataRaw = Array.isArray(data) ? data : [];
+        renderTable(allDataRaw);
+    } catch (err) {
+        console.error(err);
+        document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" class="text-center text-danger py-5">Gagal terhubung ke GSheet. Pastikan URL Web App sudah benar dan sudah di-deploy.</td></tr>';
+    } finally {
+        toggleLoading(false);
+    }
 }
 
-function renderCards(data) {
-    const container = document.getElementById('cardContainer');
-    container.innerHTML = '';
+// 2. MERENDER TABEL KE HTML
+function renderTable(data) {
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
 
     if (data.length === 0) {
-        container.innerHTML = `<div class="text-center mt-5 text-muted">Data tidak ditemukan</div>`;
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 fw-bold text-muted">Tidak ada data fresh yang perlu divalidasi. ✅</td></tr>';
         return;
     }
 
     data.forEach(item => {
-        const statusClass = item.statusValidasi === 'OK' ? 'card-ok' : (item.statusValidasi === 'NOK' ? 'card-nok' : 'card-pending');
-        const card = document.createElement('div');
-        card.className = `card data-card ${statusClass}`;
-        card.innerHTML = `
-            <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                        <span class="badge bg-light text-dark mb-1 border">${item.toko}</span>
-                        <h6 class="fw-bold mb-0">${item.nama}</h6>
-                    </div>
-                    <small class="text-muted">${item.timestamp}</small>
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="small text-muted">${item.timestamp}</td>
+            <td class="fw-bold text-dark">${item.nama}</td>
+            <td><span class="badge bg-light text-success border border-success">${item.toko}</span></td>
+            <td>${parseChecklist(item.aktivitas)}</td>
+            <td>
+                <div class="d-flex flex-column gap-1">
+                    <button class="btn btn-sm btn-primary px-2 fw-bold shadow-sm" onclick="bukaPopup('${item.fotoDisplay}', 'Foto Display')">🖼️ Display</button>
+                    <button class="btn btn-sm btn-info text-white px-2 fw-bold shadow-sm" onclick="bukaPopup('${item.fotoStock}', 'Foto Stock')">📦 Stock</button>
                 </div>
-                <p class="small text-muted mb-3"><i class="bi bi-tag"></i> Aktivitas: <strong>${item.aktivitas}</strong></p>
-                
-                <div class="row g-2 mb-3">
-                    <div class="col-6">
-                        <button class="btn btn-outline-secondary btn-sm w-100 py-2 rounded-3" onclick="openImg('${item.fotoDisplay}')">🖼️ Display</button>
+            </td>
+            <td class="text-center">
+                <div class="d-flex justify-content-center gap-4">
+                    <div class="text-center">
+                        <input type="checkbox" class="cb-ok" name="row-${item.row}" onclick="handleQueue(${item.row}, 'OK', this)">
+                        <div class="small fw-bold text-success mt-1">OK</div>
                     </div>
-                    <div class="col-6">
-                        <button class="btn btn-outline-secondary btn-sm w-100 py-2 rounded-3" onclick="openImg('${item.fotoStock}')">📦 Stock</button>
+                    <div class="text-center">
+                        <input type="checkbox" class="cb-nok" name="row-${item.row}" onclick="handleQueue(${item.row}, 'NOK', this)">
+                        <div class="small fw-bold text-danger mt-1">NOK</div>
                     </div>
                 </div>
-
-                <div class="d-flex gap-2">
-                    <button id="btn_ok_${item.rowNum}" class="btn btn-val w-100 ${item.statusValidasi === 'OK' ? 'btn-success' : 'btn-outline-success'}" 
-                        onclick="queueStatus(${item.rowNum}, 'OK')">OK</button>
-                    <button id="btn_nok_${item.rowNum}" class="btn btn-val w-100 ${item.statusValidasi === 'NOK' ? 'btn-danger' : 'btn-outline-danger'}" 
-                        onclick="queueStatus(${item.rowNum}, 'NOK')">NOK</button>
-                </div>
-            </div>
+            </td>
         `;
-        container.appendChild(card);
+        tbody.appendChild(row);
     });
 }
 
-function filterData() {
-    const term = document.getElementById('searchTerm').value.toLowerCase();
-    const filtered = allData.filter(item => 
-        item.nama.toLowerCase().includes(term) || 
-        item.toko.toLowerCase().includes(term)
-    );
-    renderCards(filtered);
+// 3. PARSING CHECKLIST FRESH (Culling, Trimming, Crisping)
+function parseChecklist(txt) {
+    if (!txt) return '<span class="text-muted">Data Kosong</span>';
+    
+    const categories = [
+        { key: "CULLING", label: "Culling" },
+        { key: "TRIMMING", label: "Trimming" },
+        { key: "CRISPING", label: "Crisping" }
+    ];
+
+    let html = '<div class="checklist-box">';
+    categories.forEach(cat => {
+        // Regex untuk mencari kata kunci kategori yang diikuti kata OK
+        const regex = new RegExp(`${cat.key}\\s+OK`, 'i');
+        const isOK = regex.test(txt);
+        
+        html += `
+            <div class="checklist-item">
+                <span class="fw-bold" style="font-size:0.7rem;">${cat.label}</span>
+                <span class="status-pill ${isOK ? 'status-ok' : 'status-nok'}">
+                    ${isOK ? '✔ OK' : '✖ NOK'}
+                </span>
+            </div>`;
+    });
+    return html + '</div>';
 }
 
-function queueStatus(row, status) {
-    const idx = updateQueue.findIndex(x => x.rowNum === row);
-    if (idx > -1) updateQueue[idx].status = status;
-    else updateQueue.push({ rowNum: row, status: status });
-
-    // Update UI Feedback
-    document.getElementById(`btn_ok_${row}`).className = `btn btn-val w-100 ${status === 'OK' ? 'btn-success' : 'btn-outline-success'}`;
-    document.getElementById(`btn_nok_${row}`).className = `btn btn-val w-100 ${status === 'NOK' ? 'btn-danger' : 'btn-outline-danger'}`;
-
-    document.getElementById('submitBar').style.display = 'block';
-    document.getElementById('selectedCount').innerText = updateQueue.length;
+// 4. LOGIKA PEMILIHAN (OK/NOK)
+function handleQueue(rowId, status, el) {
+    // Memastikan hanya satu checkbox yang terpilih per baris (OK atau NOK)
+    const rowGroup = document.getElementsByName(`row-${rowId}`);
+    rowGroup.forEach(cb => { if(cb !== el) cb.checked = false; });
+    
+    // Update antrian data yang akan dikirim
+    queue = queue.filter(q => q.row !== rowId);
+    if (el.checked) {
+        queue.push({ row: rowId, status: status });
+    }
+    updateSubmitBar();
 }
 
-function simpanData() {
-    toggleLoader(true);
-    google.script.run.withSuccessHandler(res => {
-        alert(res);
-        updateQueue = [];
-        document.getElementById('submitBar').style.display = 'none';
-        fetchData();
-    }).updateValidation(updateQueue);
+function updateSubmitBar() {
+    const bar = document.getElementById('submitBar');
+    const countEl = document.getElementById('countSelected');
+    if(countEl) countEl.innerText = queue.length;
+    if(bar) bar.style.display = queue.length > 0 ? 'block' : 'none';
 }
 
-function openImg(url) {
-    if(!url || url === "" || url === "undefined") return alert("Foto tidak tersedia");
-    document.getElementById('imgPreview').src = url;
-    new bootstrap.Modal(document.getElementById('fotoModal')).show();
+// 5. MENGIRIM DATA KE GSHEET (KOLOM G)
+async function kirimData() {
+    if (!confirm(`Simpan validasi Kolom G untuk ${queue.length} data ini?`)) return;
+    
+    toggleLoading(true);
+    try {
+        await fetch(URL_WEB_APP, {
+            method: 'POST',
+            mode: 'no-cors', // Menghindari isu CORS pada Apps Script
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(queue)
+        });
+        
+        // Karena no-cors, kita beri delay sedikit sebelum refresh UI
+        setTimeout(() => {
+            alert("Validasi Berhasil Disimpan ke Kolom G!");
+            fetchData();
+        }, 1500);
+    } catch (e) {
+        console.error(e);
+        alert("Terjadi kesalahan saat mengirim data.");
+        toggleLoading(false);
+    }
 }
 
-function toggleLoader(show) {
-    document.getElementById('loader').style.display = show ? 'flex' : 'none';
+// 6. POPUP PREVIEW FOTO
+function bukaPopup(url, title = "Preview Foto") {
+    if(!url || url.length < 10) return alert("Link foto tidak valid atau kosong!");
+    
+    const modalEl = document.getElementById('modalFoto');
+    const imgEl = document.getElementById('frameFoto');
+    const loadEl = document.getElementById('loadingGambar');
+    const myModal = new bootstrap.Modal(modalEl);
+
+    // Konversi link Drive agar bisa dirender sebagai gambar langsung
+    let finalUrl = url;
+    if (url.includes('drive.google.com')) {
+        const fileId = url.split('/d/')[1]?.split('/')[0] || url.split('id=')[1]?.split('&')[0];
+        finalUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+    }
+
+    imgEl.style.display = 'none';
+    if(loadEl) loadEl.style.display = 'block';
+    
+    imgEl.src = finalUrl;
+    myModal.show();
+    
+    imgEl.onload = () => {
+        if(loadEl) loadEl.style.display = 'none';
+        imgEl.style.display = 'inline-block';
+    };
+}
+
+function toggleLoading(show) {
+    const loader = document.getElementById('loading-overlay');
+    if(loader) loader.style.display = show ? 'flex' : 'none';
+}
+
+// 7. FILTER PENCARIAN
+if(document.getElementById('inputNama')) document.getElementById('inputNama').oninput = runFilter;
+if(document.getElementById('inputToko')) document.getElementById('inputToko').oninput = runFilter;
+if(document.getElementById('inputTanggal')) document.getElementById('inputTanggal').onchange = runFilter;
+
+function runFilter() {
+    const n = document.getElementById('inputNama').value.toLowerCase();
+    const t = document.getElementById('inputToko').value.toLowerCase();
+    const d = document.getElementById('inputTanggal').value;
+    
+    const filtered = allDataRaw.filter(i => {
+        const matchNama = i.nama.toLowerCase().includes(n);
+        const matchToko = i.toko.toLowerCase().includes(t);
+        const matchDate = (d === "" || i.timestamp.includes(d));
+        return matchNama && matchToko && matchDate;
+    });
+    renderTable(filtered);
 }
