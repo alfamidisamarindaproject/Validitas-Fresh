@@ -1,80 +1,100 @@
-let queueUpdate = [];
+let allData = [];
+let updateQueue = [];
 
-// Inisialisasi awal
 document.addEventListener('DOMContentLoaded', fetchData);
 
 function fetchData() {
-    toggleLoading(true);
-    google.script.run.withSuccessHandler(renderTable).getData();
+    toggleLoader(true);
+    google.script.run.withSuccessHandler(data => {
+        allData = data;
+        renderCards(data);
+        toggleLoader(false);
+    }).getData();
 }
 
-function renderTable(data) {
-    const tbody = document.getElementById('tableBody');
-    tbody.innerHTML = '';
-    
+function renderCards(data) {
+    const container = document.getElementById('cardContainer');
+    container.innerHTML = '';
+
     if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center">Tidak ada data ditemukan.</td></tr>';
-        toggleLoading(false);
+        container.innerHTML = `<div class="text-center mt-5 text-muted">Data tidak ditemukan</div>`;
         return;
     }
 
-    data.forEach(row => {
-        const tr = document.createElement('tr');
-        const badgeColor = row.statusValidasi === 'OK' ? 'bg-success' : (row.statusValidasi === 'NOK' ? 'bg-danger' : 'bg-secondary');
-        
-        tr.innerHTML = `
-            <td><small>${row.timestamp}</small></td>
-            <td><strong>${row.nama}</strong><br><small class="text-muted">${row.toko}</small></td>
-            <td><span class="fresh-badge">${row.aktivitas}</span></td>
-            <td>
-                <button class="btn btn-sm btn-outline-primary mb-1" onclick="viewImage('${row.fotoDisplay}')">🖼️ Display</button>
-                <button class="btn btn-sm btn-outline-info mb-1" onclick="viewImage('${row.fotoStock}')">📦 Stock</button>
-            </td>
-            <td class="text-center"><span class="badge ${badgeColor}">${row.statusValidasi || 'BELUM'}</span></td>
-            <td class="text-center">
-                <div class="btn-group btn-group-sm">
-                    <input type="radio" class="btn-check" name="row_${row.rowNum}" id="ok_${row.rowNum}" onchange="prepareUpdate(${row.rowNum}, 'OK')">
-                    <label class="btn btn-outline-success" for="ok_${row.rowNum}">OK</label>
-                    
-                    <input type="radio" class="btn-check" name="row_${row.rowNum}" id="nok_${row.rowNum}" onchange="prepareUpdate(${row.rowNum}, 'NOK')">
-                    <label class="btn btn-outline-danger" for="nok_${row.rowNum}">NOK</label>
+    data.forEach(item => {
+        const statusClass = item.statusValidasi === 'OK' ? 'card-ok' : (item.statusValidasi === 'NOK' ? 'card-nok' : 'card-pending');
+        const card = document.createElement('div');
+        card.className = `card data-card ${statusClass}`;
+        card.innerHTML = `
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <span class="badge bg-light text-dark mb-1 border">${item.toko}</span>
+                        <h6 class="fw-bold mb-0">${item.nama}</h6>
+                    </div>
+                    <small class="text-muted">${item.timestamp}</small>
                 </div>
-            </td>
+                <p class="small text-muted mb-3"><i class="bi bi-tag"></i> Aktivitas: <strong>${item.aktivitas}</strong></p>
+                
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <button class="btn btn-outline-secondary btn-sm w-100 py-2 rounded-3" onclick="openImg('${item.fotoDisplay}')">🖼️ Display</button>
+                    </div>
+                    <div class="col-6">
+                        <button class="btn btn-outline-secondary btn-sm w-100 py-2 rounded-3" onclick="openImg('${item.fotoStock}')">📦 Stock</button>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button id="btn_ok_${item.rowNum}" class="btn btn-val w-100 ${item.statusValidasi === 'OK' ? 'btn-success' : 'btn-outline-success'}" 
+                        onclick="queueStatus(${item.rowNum}, 'OK')">OK</button>
+                    <button id="btn_nok_${item.rowNum}" class="btn btn-val w-100 ${item.statusValidasi === 'NOK' ? 'btn-danger' : 'btn-outline-danger'}" 
+                        onclick="queueStatus(${item.rowNum}, 'NOK')">NOK</button>
+                </div>
+            </div>
         `;
-        tbody.appendChild(tr);
+        container.appendChild(card);
     });
-    toggleLoading(false);
 }
 
-function prepareUpdate(rowNum, status) {
-    const idx = queueUpdate.findIndex(x => x.rowNum === rowNum);
-    if (idx > -1) {
-        queueUpdate[idx].status = status;
-    } else {
-        queueUpdate.push({ rowNum, status });
-    }
-    
+function filterData() {
+    const term = document.getElementById('searchTerm').value.toLowerCase();
+    const filtered = allData.filter(item => 
+        item.nama.toLowerCase().includes(term) || 
+        item.toko.toLowerCase().includes(term)
+    );
+    renderCards(filtered);
+}
+
+function queueStatus(row, status) {
+    const idx = updateQueue.findIndex(x => x.rowNum === row);
+    if (idx > -1) updateQueue[idx].status = status;
+    else updateQueue.push({ rowNum: row, status: status });
+
+    // Update UI Feedback
+    document.getElementById(`btn_ok_${row}`).className = `btn btn-val w-100 ${status === 'OK' ? 'btn-success' : 'btn-outline-success'}`;
+    document.getElementById(`btn_nok_${row}`).className = `btn btn-val w-100 ${status === 'NOK' ? 'btn-danger' : 'btn-outline-danger'}`;
+
     document.getElementById('submitBar').style.display = 'block';
-    document.getElementById('countSelected').innerText = queueUpdate.length;
+    document.getElementById('selectedCount').innerText = updateQueue.length;
 }
 
-function kirimData() {
-    toggleLoading(true);
-    google.script.run.withSuccessHandler(response => {
-        alert(response);
-        queueUpdate = [];
+function simpanData() {
+    toggleLoader(true);
+    google.script.run.withSuccessHandler(res => {
+        alert(res);
+        updateQueue = [];
         document.getElementById('submitBar').style.display = 'none';
-        fetchData(); // Refresh data setelah simpan
-    }).updateValidation(queueUpdate);
+        fetchData();
+    }).updateValidation(updateQueue);
 }
 
-function viewImage(url) {
-    if (!url || url === "" || url === "undefined") return alert("Link foto tidak tersedia");
-    document.getElementById('frameFoto').src = url;
-    const modal = new bootstrap.Modal(document.getElementById('modalFoto'));
-    modal.show();
+function openImg(url) {
+    if(!url || url === "" || url === "undefined") return alert("Foto tidak tersedia");
+    document.getElementById('imgPreview').src = url;
+    new bootstrap.Modal(document.getElementById('fotoModal')).show();
 }
 
-function toggleLoading(show) {
-    document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+function toggleLoader(show) {
+    document.getElementById('loader').style.display = show ? 'flex' : 'none';
 }
