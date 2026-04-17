@@ -104,67 +104,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-    /** * Penyesuaian renderTable untuk output CARD alih-alih TABLE 
-     * Salin fungsi ini untuk menggantikan renderTable di app.js Anda
-     */
-    function renderTable(data) {
-        const container = document.getElementById('cardContainer');
-        container.innerHTML = '';
-
-        if (data.length === 0) {
-            container.innerHTML = '<div class="text-center py-5 fw-bold text-muted">Tidak ada data ditemukan. ✅</div>';
-            return;
-        }
-
-        data.forEach(item => {
-            const card = document.createElement('div');
-            card.className = 'data-card shadow-sm';
-            card.innerHTML = `
-                <div class="card-header-custom">
-                    <div>
-                        <span class="badge bg-success mb-1">${item.toko}</span>
-                        <h6 class="fw-bold mb-0 text-dark">${item.nama}</h6>
-                    </div>
-                    <small class="text-muted" style="font-size:0.7rem;">${item.timestamp}</small>
-                </div>
-                <div class="p-3">
-                    <div class="mb-3">
-                        ${parseChecklist(item.aktivitas)}
-                    </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <button class="btn btn-sm btn-outline-primary w-100 fw-bold" onclick="bukaPopup('${item.fotoDisplay}')">
-                                <i class="bi bi-image"></i> Foto Display
-                            </button>
-                        </div>
-                        <div class="col-6">
-                            <button class="btn btn-sm btn-outline-info w-100 fw-bold text-dark" onclick="bukaPopup('${item.fotoStock}')">
-                                <i class="bi bi-box-seam"></i> Foto Stock
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div class="validation-area">
-                    <div class="row text-center">
-                        <div class="col-6">
-                            <input type="checkbox" class="cb-ok" name="row-${item.row}" onclick="handleQueue(${item.row}, 'OK', this)">
-                            <div class="val-label text-success">VALID (OK)</div>
-                        </div>
-                        <div class="col-6">
-                            <input type="checkbox" class="cb-nok" name="row-${item.row}" onclick="handleQueue(${item.row}, 'NOK', this)">
-                            <div class="val-label text-danger">NOT OK (NOK)</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            container.appendChild(card);
-        });
-    }
-</script>
-
-<script>
-    <?!= include('app.js'); ?>
-</script>
+<script src="app.js"></script>
 </body>
 </html>
