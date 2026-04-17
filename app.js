@@ -5,7 +5,7 @@ let queue = [];
 
 window.onload = fetchData;
 
-// 1. MENGAMBIL DATA DARI GSHEET
+// 1. MENGAMBIL DATA
 async function fetchData() {
     toggleLoading(true);
     queue = [];
@@ -13,65 +13,59 @@ async function fetchData() {
     try {
         const response = await fetch(URL_WEB_APP);
         const data = await response.json();
-        // Memastikan data yang diterima adalah array
         allDataRaw = Array.isArray(data) ? data : [];
         renderTable(allDataRaw);
     } catch (err) {
         console.error(err);
-        // Memperbaiki id dari tableBody ke cardContainer
-        document.getElementById('cardContainer').innerHTML = '<div class="text-center text-danger py-5 fw-bold">Gagal terhubung ke GSheet. Pastikan URL Web App sudah benar dan sudah di-deploy.</div>';
+        document.getElementById('cardContainer').innerHTML = '<div class="text-center text-danger py-5 fw-bold">Gagal terhubung ke GSheet. Pastikan URL Web App benar.</div>';
     } finally {
         toggleLoading(false);
     }
 }
 
-// 2. MERENDER DATA KE HTML SEBAGAI CARD
+// 2. MERENDER DATA DENGAN DESAIN "COMPACT CARD" (Hemat Layar)
 function renderTable(data) {
     const container = document.getElementById('cardContainer');
     container.innerHTML = '';
 
     if (data.length === 0) {
-        container.innerHTML = '<div class="text-center py-5 fw-bold text-muted">Tidak ada data ditemukan. ✅</div>';
+        container.innerHTML = '<div class="text-center py-5 fw-bold text-muted">🎉 Tidak ada data tersisa untuk divalidasi.</div>';
         return;
     }
 
     data.forEach(item => {
         const card = document.createElement('div');
-        card.className = 'data-card shadow-sm';
+        card.className = 'data-card';
         card.innerHTML = `
-            <div class="card-header-custom">
-                <div>
-                    <span class="badge bg-success mb-1">${item.toko}</span>
-                    <h6 class="fw-bold mb-0 text-dark">${item.nama}</h6>
+            <div class="p-2 p-md-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <div class="d-flex align-items-center gap-2" style="overflow: hidden;">
+                        <span class="badge bg-success">${item.toko}</span>
+                        <span class="fw-bold text-dark text-truncate" style="max-width: 160px; font-size: 0.9rem;">${item.nama}</span>
+                    </div>
+                    <small class="text-muted text-end flex-shrink-0 ms-2" style="font-size: 0.7rem;">${item.timestamp}</small>
                 </div>
-                <small class="text-muted" style="font-size:0.7rem;">${item.timestamp}</small>
-            </div>
-            <div class="p-3">
-                <div class="mb-3">
-                    ${parseChecklist(item.aktivitas)}
+                
+                <div class="mb-2">
+                    ${parseChecklistCompact(item.aktivitas)}
                 </div>
-                <div class="row g-2 mb-3">
-                    <div class="col-6">
-                        <button class="btn btn-sm btn-outline-primary w-100 fw-bold" onclick="bukaPopup('${item.fotoDisplay}')">
-                            <i class="bi bi-image"></i> Foto Display
+
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                    <div class="btn-group shadow-sm">
+                        <button class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="bukaPopup('${item.fotoDisplay}')" title="Foto Display">
+                            <i class="bi bi-image"></i><span class="ms-1" style="font-size: 0.75rem;">Disp</span>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="bukaPopup('${item.fotoStock}')" title="Foto Stock">
+                            <i class="bi bi-box-seam"></i><span class="ms-1" style="font-size: 0.75rem;">Stck</span>
                         </button>
                     </div>
-                    <div class="col-6">
-                        <button class="btn btn-sm btn-outline-info w-100 fw-bold text-dark" onclick="bukaPopup('${item.fotoStock}')">
-                            <i class="bi bi-box-seam"></i> Foto Stock
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="validation-area">
-                <div class="row text-center">
-                    <div class="col-6">
-                        <input type="checkbox" class="cb-ok" name="row-${item.row}" onclick="handleQueue(${item.row}, 'OK', this)">
-                        <div class="val-label text-success">VALID (OK)</div>
-                    </div>
-                    <div class="col-6">
-                        <input type="checkbox" class="cb-nok" name="row-${item.row}" onclick="handleQueue(${item.row}, 'NOK', this)">
-                        <div class="val-label text-danger">NOT OK (NOK)</div>
+
+                    <div class="btn-group shadow-sm" style="min-width: 130px;">
+                        <input type="checkbox" class="btn-check" name="row-${item.row}" id="ok-${item.row}" onclick="handleQueue(${item.row}, 'OK', this)">
+                        <label class="btn btn-outline-success btn-sm fw-bold m-0 py-1" for="ok-${item.row}">OK</label>
+
+                        <input type="checkbox" class="btn-check" name="row-${item.row}" id="nok-${item.row}" onclick="handleQueue(${item.row}, 'NOK', this)">
+                        <label class="btn btn-outline-danger btn-sm fw-bold m-0 py-1" for="nok-${item.row}">NOK</label>
                     </div>
                 </div>
             </div>
@@ -80,40 +74,29 @@ function renderTable(data) {
     });
 }
 
-// 3. PARSING CHECKLIST FRESH (Culling, Trimming, Crisping)
-function parseChecklist(txt) {
-    if (!txt) return '<span class="text-muted">Data Kosong</span>';
+// 3. PARSER CHECKLIST MINI (Sangat Menghemat Tempat)
+function parseChecklistCompact(txt) {
+    if (!txt) return '<span class="badge bg-light text-muted border">Data Kosong</span>';
     
-    const categories = [
-        { key: "CULLING", label: "Culling" },
-        { key: "TRIMMING", label: "Trimming" },
-        { key: "CRISPING", label: "Crisping" }
-    ];
+    // Cek keberadaan kata OK setelah kategori
+    const isC = /CULLING\s+OK/i.test(txt);
+    const isT = /TRIMMING\s+OK/i.test(txt);
+    const isCr = /CRISPING\s+OK/i.test(txt);
 
-    let html = '<div class="checklist-box">';
-    categories.forEach(cat => {
-        // Regex untuk mencari kata kunci kategori yang diikuti kata OK
-        const regex = new RegExp(`${cat.key}\\s+OK`, 'i');
-        const isOK = regex.test(txt);
-        
-        html += `
-            <div class="checklist-item">
-                <span class="fw-bold" style="font-size:0.7rem;">${cat.label}</span>
-                <span class="status-pill ${isOK ? 'status-ok' : 'status-nok'}">
-                    ${isOK ? '✔ OK' : '✖ NOK'}
-                </span>
-            </div>`;
-    });
-    return html + '</div>';
+    // Mengembalikan badge ringkas (Contoh: "C ✔")
+    return `
+        <span class="badge ${isC ? 'bg-success' : 'bg-danger'} bg-opacity-75 me-1 fw-normal" title="Culling">C ${isC ? '✔' : '✖'}</span>
+        <span class="badge ${isT ? 'bg-success' : 'bg-danger'} bg-opacity-75 me-1 fw-normal" title="Trimming">T ${isT ? '✔' : '✖'}</span>
+        <span class="badge ${isCr ? 'bg-success' : 'bg-danger'} bg-opacity-75 fw-normal" title="Crisping">Cr ${isCr ? '✔' : '✖'}</span>
+    `;
 }
 
-// 4. LOGIKA PEMILIHAN (OK/NOK)
+// 4. LOGIKA ANTRIAN VALIDASI
 function handleQueue(rowId, status, el) {
-    // Memastikan hanya satu checkbox yang terpilih per baris (OK atau NOK)
+    // Memastikan jika klik OK, NOK mati. Jika klik NOK, OK mati.
     const rowGroup = document.getElementsByName(`row-${rowId}`);
     rowGroup.forEach(cb => { if(cb !== el) cb.checked = false; });
     
-    // Update antrian data yang akan dikirim
     queue = queue.filter(q => q.row !== rowId);
     if (el.checked) {
         queue.push({ row: rowId, status: status });
@@ -128,41 +111,39 @@ function updateSubmitBar() {
     if(bar) bar.style.display = queue.length > 0 ? 'block' : 'none';
 }
 
-// 5. MENGIRIM DATA KE GSHEET (KOLOM G)
+// 5. MENGIRIM KE GSHEET
 async function kirimData() {
-    if (!confirm(`Simpan validasi Kolom G untuk ${queue.length} data ini?`)) return;
+    if (!confirm(`Yakin ingin memvalidasi ${queue.length} baris data ini?`)) return;
     
     toggleLoading(true);
     try {
         await fetch(URL_WEB_APP, {
             method: 'POST',
-            mode: 'no-cors', // Menghindari isu CORS pada Apps Script
+            mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(queue)
         });
         
-        // Karena no-cors, kita beri delay sedikit sebelum refresh UI
         setTimeout(() => {
-            alert("Validasi Berhasil Disimpan ke Kolom G!");
+            alert("Data berhasil diproses ke Google Sheet!");
             fetchData();
-        }, 1500);
+        }, 1200);
     } catch (e) {
         console.error(e);
-        alert("Terjadi kesalahan saat mengirim data.");
+        alert("Terjadi kesalahan koneksi.");
         toggleLoading(false);
     }
 }
 
-// 6. POPUP PREVIEW FOTO
-function bukaPopup(url, title = "Preview Foto") {
-    if(!url || url.length < 10) return alert("Link foto tidak valid atau kosong!");
+// 6. POPUP FOTO
+function bukaPopup(url) {
+    if(!url || url.length < 10) return alert("Foto tidak tersedia (Link kosong).");
     
     const modalEl = document.getElementById('modalFoto');
     const imgEl = document.getElementById('frameFoto');
     const loadEl = document.getElementById('loadingGambar');
     const myModal = new bootstrap.Modal(modalEl);
 
-    // Konversi link Drive agar bisa dirender sebagai gambar langsung
     let finalUrl = url;
     if (url.includes('drive.google.com')) {
         const fileId = url.split('/d/')[1]?.split('/')[0] || url.split('id=')[1]?.split('&')[0];
@@ -177,7 +158,7 @@ function bukaPopup(url, title = "Preview Foto") {
     
     imgEl.onload = () => {
         if(loadEl) loadEl.style.display = 'none';
-        imgEl.style.display = 'inline-block';
+        imgEl.style.display = 'block';
     };
 }
 
@@ -194,9 +175,8 @@ if(document.getElementById('inputTanggal')) document.getElementById('inputTangga
 function runFilter() {
     const n = document.getElementById('inputNama').value.toLowerCase();
     const t = document.getElementById('inputToko').value.toLowerCase();
-    const dRaw = document.getElementById('inputTanggal').value; // Mengambil YYYY-MM-DD
+    const dRaw = document.getElementById('inputTanggal').value; 
     
-    // Konversi format tanggal YYYY-MM-DD (dari HTML) menjadi DD/MM/YYYY (dari GS)
     let dFormatted = "";
     if (dRaw) {
         const parts = dRaw.split('-');
