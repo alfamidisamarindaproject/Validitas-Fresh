@@ -18,49 +18,65 @@ async function fetchData() {
         renderTable(allDataRaw);
     } catch (err) {
         console.error(err);
-        document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" class="text-center text-danger py-5">Gagal terhubung ke GSheet. Pastikan URL Web App sudah benar dan sudah di-deploy.</td></tr>';
+        // Memperbaiki id dari tableBody ke cardContainer
+        document.getElementById('cardContainer').innerHTML = '<div class="text-center text-danger py-5 fw-bold">Gagal terhubung ke GSheet. Pastikan URL Web App sudah benar dan sudah di-deploy.</div>';
     } finally {
         toggleLoading(false);
     }
 }
 
-// 2. MERENDER TABEL KE HTML
+// 2. MERENDER DATA KE HTML SEBAGAI CARD
 function renderTable(data) {
-    const tbody = document.getElementById('tableBody');
-    tbody.innerHTML = '';
+    const container = document.getElementById('cardContainer');
+    container.innerHTML = '';
 
     if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 fw-bold text-muted">Tidak ada data fresh yang perlu divalidasi. ✅</td></tr>';
+        container.innerHTML = '<div class="text-center py-5 fw-bold text-muted">Tidak ada data ditemukan. ✅</div>';
         return;
     }
 
     data.forEach(item => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td class="small text-muted">${item.timestamp}</td>
-            <td class="fw-bold text-dark">${item.nama}</td>
-            <td><span class="badge bg-light text-success border border-success">${item.toko}</span></td>
-            <td>${parseChecklist(item.aktivitas)}</td>
-            <td>
-                <div class="d-flex flex-column gap-1">
-                    <button class="btn btn-sm btn-primary px-2 fw-bold shadow-sm" onclick="bukaPopup('${item.fotoDisplay}', 'Foto Display')">🖼️ Display</button>
-                    <button class="btn btn-sm btn-info text-white px-2 fw-bold shadow-sm" onclick="bukaPopup('${item.fotoStock}', 'Foto Stock')">📦 Stock</button>
+        const card = document.createElement('div');
+        card.className = 'data-card shadow-sm';
+        card.innerHTML = `
+            <div class="card-header-custom">
+                <div>
+                    <span class="badge bg-success mb-1">${item.toko}</span>
+                    <h6 class="fw-bold mb-0 text-dark">${item.nama}</h6>
                 </div>
-            </td>
-            <td class="text-center">
-                <div class="d-flex justify-content-center gap-4">
-                    <div class="text-center">
+                <small class="text-muted" style="font-size:0.7rem;">${item.timestamp}</small>
+            </div>
+            <div class="p-3">
+                <div class="mb-3">
+                    ${parseChecklist(item.aktivitas)}
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <button class="btn btn-sm btn-outline-primary w-100 fw-bold" onclick="bukaPopup('${item.fotoDisplay}')">
+                            <i class="bi bi-image"></i> Foto Display
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <button class="btn btn-sm btn-outline-info w-100 fw-bold text-dark" onclick="bukaPopup('${item.fotoStock}')">
+                            <i class="bi bi-box-seam"></i> Foto Stock
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="validation-area">
+                <div class="row text-center">
+                    <div class="col-6">
                         <input type="checkbox" class="cb-ok" name="row-${item.row}" onclick="handleQueue(${item.row}, 'OK', this)">
-                        <div class="small fw-bold text-success mt-1">OK</div>
+                        <div class="val-label text-success">VALID (OK)</div>
                     </div>
-                    <div class="text-center">
+                    <div class="col-6">
                         <input type="checkbox" class="cb-nok" name="row-${item.row}" onclick="handleQueue(${item.row}, 'NOK', this)">
-                        <div class="small fw-bold text-danger mt-1">NOK</div>
+                        <div class="val-label text-danger">NOT OK (NOK)</div>
                     </div>
                 </div>
-            </td>
+            </div>
         `;
-        tbody.appendChild(row);
+        container.appendChild(card);
     });
 }
 
@@ -178,12 +194,19 @@ if(document.getElementById('inputTanggal')) document.getElementById('inputTangga
 function runFilter() {
     const n = document.getElementById('inputNama').value.toLowerCase();
     const t = document.getElementById('inputToko').value.toLowerCase();
-    const d = document.getElementById('inputTanggal').value;
+    const dRaw = document.getElementById('inputTanggal').value; // Mengambil YYYY-MM-DD
+    
+    // Konversi format tanggal YYYY-MM-DD (dari HTML) menjadi DD/MM/YYYY (dari GS)
+    let dFormatted = "";
+    if (dRaw) {
+        const parts = dRaw.split('-');
+        dFormatted = `${parts[2]}/${parts[1]}/${parts[0]}`; 
+    }
     
     const filtered = allDataRaw.filter(i => {
         const matchNama = i.nama.toLowerCase().includes(n);
         const matchToko = i.toko.toLowerCase().includes(t);
-        const matchDate = (d === "" || i.timestamp.includes(d));
+        const matchDate = (dFormatted === "" || i.timestamp.includes(dFormatted));
         return matchNama && matchToko && matchDate;
     });
     renderTable(filtered);
