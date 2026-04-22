@@ -75,15 +75,21 @@ function renderTable(data) {
 }
 
 // 3. PARSER CHECKLIST MINI (Sangat Menghemat Tempat)
-function parseChecklistCompact(txt) {
-    if (!txt) return '<span class="badge bg-light text-muted border">Data Kosong</span>';
+unction parseChecklistCompact(txt) {
+    // Jika kolom benar-benar kosong
+    if (!txt) {
+        return `
+            <span class="badge bg-danger bg-opacity-75 me-1 fw-normal" title="Culling">C ✖</span>
+            <span class="badge bg-danger bg-opacity-75 me-1 fw-normal" title="Trimming">T ✖</span>
+            <span class="badge bg-danger bg-opacity-75 fw-normal" title="Crisping">Cr ✖</span>
+        `;
+    }
     
-    // Cek keberadaan kata OK setelah kategori
-    const isC = /CULLING\s+OK/i.test(txt);
-    const isT = /TRIMMING\s+OK/i.test(txt);
-    const isCr = /CRISPING\s+OK/i.test(txt);
+    // Cukup deteksi keberadaan kata kunci di dalam teks (case-insensitive)
+    const isC = /CULLING/i.test(txt);
+    const isT = /TRIMMING/i.test(txt);
+    const isCr = /CRISPING/i.test(txt);
 
-    // Mengembalikan badge ringkas (Contoh: "C ✔")
     return `
         <span class="badge ${isC ? 'bg-success' : 'bg-danger'} bg-opacity-75 me-1 fw-normal" title="Culling">C ${isC ? '✔' : '✖'}</span>
         <span class="badge ${isT ? 'bg-success' : 'bg-danger'} bg-opacity-75 me-1 fw-normal" title="Trimming">T ${isT ? '✔' : '✖'}</span>
