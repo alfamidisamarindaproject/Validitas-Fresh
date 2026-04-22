@@ -75,7 +75,7 @@ function renderTable(data) {
 }
 
 // 3. PARSER CHECKLIST MINI (Sangat Menghemat Tempat)
-unction parseChecklistCompact(txt) {
+function parseChecklistCompact(txt) {
     // Jika kolom benar-benar kosong
     if (!txt) {
         return `
