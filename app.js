@@ -2,7 +2,6 @@ const URL_WEB_APP = "https://script.google.com/macros/s/AKfycbyfi9FPzTQx2pcOR5NF
 
 let allDataRaw = [];
 let queue = [];
-let searchTimeout = null; 
 
 window.onload = fetchData;
 
@@ -12,59 +11,52 @@ async function fetchData() {
     queue = [];
     updateSubmitBar();
     try {
-        // Tambahkan parameter ?action=getData agar GSheet tahu apa yang harus dikirim
-        const response = await fetch(URL_WEB_APP + "?action=getData");
-        const result = await response.json();
-        
-        // PERBAIKAN: Ambil array dari result.data, lalu saring yang belum divalidasi
-        if (result.success) {
-            allDataRaw = (result.data || []).filter(i => !i.validasi || i.validasi === "");
-        } else {
-            allDataRaw = [];
-        }
-        
+        const response = await fetch(URL_WEB_APP);
+        const data = await response.json();
+        allDataRaw = Array.isArray(data) ? data : [];
         renderTable(allDataRaw);
     } catch (err) {
-        console.error("Error Fetch:", err);
+        console.error(err);
         document.getElementById('cardContainer').innerHTML = '<div class="text-center text-danger py-5 fw-bold">Gagal terhubung ke GSheet. Pastikan URL Web App benar.</div>';
     } finally {
         toggleLoading(false);
     }
 }
 
-// 2. MERENDER DATA DENGAN DESAIN "COMPACT CARD"
+// 2. MERENDER DATA DENGAN DESAIN "COMPACT CARD" (Hemat Layar)
 function renderTable(data) {
     const container = document.getElementById('cardContainer');
-    if(!container) return; // Mencegah error jika HTML belum siap
-    
     container.innerHTML = '';
 
     if (data.length === 0) {
-        container.innerHTML = '<div class="text-center py-5 fw-bold text-muted">🎉 Tidak ada antrean validasi tersisa.</div>';
+        container.innerHTML = '<div class="text-center py-5 fw-bold text-muted">🎉 Tidak ada data tersisa untuk divalidasi.</div>';
         return;
     }
 
     data.forEach(item => {
         const card = document.createElement('div');
-        card.className = 'data-card mb-3 border rounded shadow-sm';
+        card.className = 'data-card';
         card.innerHTML = `
-            <div class="p-2 p-md-3 bg-white">
+            <div class="p-2 p-md-3">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <div class="d-flex align-items-center gap-2" style="overflow: hidden;">
-                        <span class="badge bg-primary">${item.toko || '-'}</span>
-                        <span class="fw-bold text-dark text-truncate" style="max-width: 160px; font-size: 0.9rem;">${item.nama || '-'} (Rak: ${item.rak || '-'})</span>
+                        <span class="badge bg-success">${item.toko}</span>
+                        <span class="fw-bold text-dark text-truncate" style="max-width: 160px; font-size: 0.9rem;">${item.nama}</span>
                     </div>
-                    <small class="text-muted text-end flex-shrink-0 ms-2" style="font-size: 0.7rem;">${(item.timestamp || '').split(' ')[0]}</small>
+                    <small class="text-muted text-end flex-shrink-0 ms-2" style="font-size: 0.7rem;">${item.timestamp}</small>
                 </div>
                 
-                <div class="mb-2 mt-2">
-                    ${parseChecklistCompact(item.checklist)}
+                <div class="mb-2">
+                    ${parseChecklistCompact(item.aktivitas)}
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center pt-2 border-top">
                     <div class="btn-group shadow-sm">
-                        <button class="btn btn-sm btn-outline-secondary py-1 px-3" onclick="bukaPopup('${item.foto}')" title="Lihat Foto">
-                            <i class="bi bi-image"></i><span class="ms-1 fw-medium" style="font-size: 0.75rem;">Lihat Foto</span>
+                        <button class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="bukaPopup('${item.fotoDisplay}')" title="Foto Display">
+                            <i class="bi bi-image"></i><span class="ms-1" style="font-size: 0.75rem;">Disp</span>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="bukaPopup('${item.fotoStock}')" title="Foto Stock">
+                            <i class="bi bi-box-seam"></i><span class="ms-1" style="font-size: 0.75rem;">Stck</span>
                         </button>
                     </div>
 
@@ -82,25 +74,26 @@ function renderTable(data) {
     });
 }
 
-// 3. PARSER CHECKLIST MINI (Disesuaikan dengan data Planogram, Label, Expired, Cleaning)
+// 3. PARSER CHECKLIST MINI (Sangat Menghemat Tempat)
 function parseChecklistCompact(txt) {
     if (!txt) return '<span class="badge bg-light text-muted border">Data Kosong</span>';
     
-    const isP = /PLANOGRAM\s+OK/i.test(txt);
-    const isL = /LABEL PRICE\s+OK/i.test(txt);
-    const isE = /EXP CHECKED\s+OK/i.test(txt);
-    const isC = /CLEANING\s+OK/i.test(txt);
+    // Cek keberadaan kata OK setelah kategori
+    const isC = /CULLING\s+OK/i.test(txt);
+    const isT = /TRIMMING\s+OK/i.test(txt);
+    const isCr = /CRISPING\s+OK/i.test(txt);
 
+    // Mengembalikan badge ringkas (Contoh: "C ✔")
     return `
-        <span class="badge ${isP ? 'bg-success' : 'bg-danger'} bg-opacity-75 me-1 fw-normal" title="Planogram">P ${isP ? '✔' : '✖'}</span>
-        <span class="badge ${isL ? 'bg-success' : 'bg-danger'} bg-opacity-75 me-1 fw-normal" title="Label Price">L ${isL ? '✔' : '✖'}</span>
-        <span class="badge ${isE ? 'bg-success' : 'bg-danger'} bg-opacity-75 me-1 fw-normal" title="Expired Check">E ${isE ? '✔' : '✖'}</span>
-        <span class="badge ${isC ? 'bg-success' : 'bg-danger'} bg-opacity-75 fw-normal" title="Cleaning">C ${isC ? '✔' : '✖'}</span>
+        <span class="badge ${isC ? 'bg-success' : 'bg-danger'} bg-opacity-75 me-1 fw-normal" title="Culling">C ${isC ? '✔' : '✖'}</span>
+        <span class="badge ${isT ? 'bg-success' : 'bg-danger'} bg-opacity-75 me-1 fw-normal" title="Trimming">T ${isT ? '✔' : '✖'}</span>
+        <span class="badge ${isCr ? 'bg-success' : 'bg-danger'} bg-opacity-75 fw-normal" title="Crisping">Cr ${isCr ? '✔' : '✖'}</span>
     `;
 }
 
 // 4. LOGIKA ANTRIAN VALIDASI
 function handleQueue(rowId, status, el) {
+    // Memastikan jika klik OK, NOK mati. Jika klik NOK, OK mati.
     const rowGroup = document.getElementsByName(`row-${rowId}`);
     rowGroup.forEach(cb => { if(cb !== el) cb.checked = false; });
     
@@ -115,7 +108,7 @@ function updateSubmitBar() {
     const bar = document.getElementById('submitBar');
     const countEl = document.getElementById('countSelected');
     if(countEl) countEl.innerText = queue.length;
-    if(bar) bar.style.display = queue.length > 0 ? 'block' : 'none'; // Pastikan CSS submitBar defaultnya display: none atau transform
+    if(bar) bar.style.display = queue.length > 0 ? 'block' : 'none';
 }
 
 // 5. MENGIRIM KE GSHEET
@@ -127,7 +120,7 @@ async function kirimData() {
         await fetch(URL_WEB_APP, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'text/plain' }, // Ubah ke text/plain agar aman dari CORS
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(queue)
         });
         
@@ -149,8 +142,6 @@ function bukaPopup(url) {
     const modalEl = document.getElementById('modalFoto');
     const imgEl = document.getElementById('frameFoto');
     const loadEl = document.getElementById('loadingGambar');
-    if (!modalEl || !imgEl) return;
-
     const myModal = new bootstrap.Modal(modalEl);
 
     let finalUrl = url;
@@ -169,10 +160,6 @@ function bukaPopup(url) {
         if(loadEl) loadEl.style.display = 'none';
         imgEl.style.display = 'block';
     };
-    imgEl.onerror = () => {
-        if(loadEl) loadEl.style.display = 'none';
-        alert("Gagal memuat foto. GDrive belum di-set Publik.");
-    }
 }
 
 function toggleLoading(show) {
@@ -181,16 +168,14 @@ function toggleLoading(show) {
 }
 
 // 7. FILTER PENCARIAN
-document.addEventListener('DOMContentLoaded', () => {
-    if(document.getElementById('inputNama')) document.getElementById('inputNama').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(runFilter, 300); });
-    if(document.getElementById('inputToko')) document.getElementById('inputToko').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(runFilter, 300); });
-    if(document.getElementById('inputTanggal')) document.getElementById('inputTanggal').addEventListener('change', runFilter);
-});
+if(document.getElementById('inputNama')) document.getElementById('inputNama').oninput = runFilter;
+if(document.getElementById('inputToko')) document.getElementById('inputToko').oninput = runFilter;
+if(document.getElementById('inputTanggal')) document.getElementById('inputTanggal').onchange = runFilter;
 
 function runFilter() {
-    const n = (document.getElementById('inputNama') ? document.getElementById('inputNama').value.toLowerCase() : "");
-    const t = (document.getElementById('inputToko') ? document.getElementById('inputToko').value.toLowerCase() : "");
-    const dRaw = (document.getElementById('inputTanggal') ? document.getElementById('inputTanggal').value : ""); 
+    const n = document.getElementById('inputNama').value.toLowerCase();
+    const t = document.getElementById('inputToko').value.toLowerCase();
+    const dRaw = document.getElementById('inputTanggal').value; 
     
     let dFormatted = "";
     if (dRaw) {
@@ -199,11 +184,10 @@ function runFilter() {
     }
     
     const filtered = allDataRaw.filter(i => {
-        const matchNama = (i.nama || '').toLowerCase().includes(n);
-        const matchToko = (i.toko || '').toLowerCase().includes(t);
-        const matchDate = (dFormatted === "" || (i.timestamp || '').includes(dFormatted));
+        const matchNama = i.nama.toLowerCase().includes(n);
+        const matchToko = i.toko.toLowerCase().includes(t);
+        const matchDate = (dFormatted === "" || i.timestamp.includes(dFormatted));
         return matchNama && matchToko && matchDate;
     });
-    
     renderTable(filtered);
 }
